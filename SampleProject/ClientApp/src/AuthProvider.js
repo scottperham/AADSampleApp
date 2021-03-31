@@ -1,5 +1,4 @@
 ﻿import React, { createContext, useEffect, useState } from 'react';
-import { useHistory } from 'react-router-dom';
 
 export const AuthContext = createContext(null);
 
@@ -7,24 +6,18 @@ export function AuthProvider({ authService, children }) {
 
 	const [authContext, setAuthContext] = useState({
 		user: null,
-		mode: "none",
 		aadToken: null,
-		apiToken: null
+		apiToken: null,
+		graphToken: null
 	});
 
-	const history = useHistory();
-
-	const userChangeCallback = (user, mode, aadToken, apiToken) => {
+	const userChangeCallback = (user, aadToken, apiToken, graphToken) => {
 		setAuthContext({
 			user: user,
-			mode: mode,
 			aadToken: aadToken,
-			apiToken: apiToken
+			apiToken: apiToken,
+			graphToken: graphToken
 		});
-
-		if (mode == "msal redirect") {
-			history.push("/");
-		}
 	}
 
 	useEffect(() => {
@@ -34,9 +27,9 @@ export function AuthProvider({ authService, children }) {
 	const context = {
 		authService: authService,
 		user: authContext.user,
-		mode: authContext.mode,
 		aadToken: authContext.aadToken,
-		apiToken: authContext.apiToken
+		apiToken: authContext.apiToken,
+		graphToken: authContext.graphToken
 	}
 
 	return <AuthContext.Provider value={context}>{children}</AuthContext.Provider>

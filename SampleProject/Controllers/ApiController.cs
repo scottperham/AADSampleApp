@@ -36,14 +36,15 @@ namespace SampleProject.Controllers
             return Convert.ToBase64String(byteResult.GetBytes(24));
         }
 
-        LoginResult GetLoginResult(UserIdentity identity, RefreshToken refreshToken)
+        LoginResult GetLoginResult(UserIdentity identity, RefreshToken refreshToken, string graphToken = null)
         {
             return new LoginResult
             {
                 AccessToken = _tokenService.GetToken(identity.DisplayName, identity.Email),
                 RefreshToken = refreshToken.Token,
                 TokenExpiry = (int)(refreshToken.AbsoluteExpiryUtc - _epoch).TotalSeconds,
-                DisplayName = identity.DisplayName
+                DisplayName = identity.DisplayName,
+                GraphAccessToken = graphToken
             };
         }
 
@@ -148,7 +149,7 @@ namespace SampleProject.Controllers
 
             await _identityProvider.CreateOrUpdateUser(identity);
 
-            return Ok(GetLoginResult(identity, refreshToken));
+            return Ok(GetLoginResult(identity, refreshToken, graphAccessToken));
         }
 
         [HttpGet("Users")]

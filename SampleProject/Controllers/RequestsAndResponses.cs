@@ -33,6 +33,7 @@
         public string RefreshToken { get; set; }
         public int TokenExpiry { get; set; }
         public string DisplayName { get; set; }
+        public string GraphAccessToken { get; set; }
     }
 
     public class RefreshLoginRequest

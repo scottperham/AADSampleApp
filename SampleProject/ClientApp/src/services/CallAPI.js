@@ -1,4 +1,4 @@
-﻿export async function callAPI(uri, body, bearerToken) {
+﻿export async function callAPI(uri, body, bearerToken, returnType) {
 
 	const request = {
 		method: !!body ? "POST" : "GET",
@@ -20,16 +20,26 @@
 	try {
 
 		const response = await fetch(uri, request);
-		const resultText = await response.text();
 
-		if (response.ok) {
-
-			const result = resultText ? JSON.parse(resultText) : {};
-			
-			return { success: true, error: null, result: result };
+		if (!response.ok) {
+			return { success: false, error: await response.text(), result: null };
 		}
 
-		error = resultText;
+		let result = null;
+
+		switch (returnType) {
+			case "text":
+				result = await response.text();
+				break;
+			case "blob":
+				result = await response.blob();
+				break;
+			default:
+				result = await response.json();
+				break;
+		}
+
+		return { success: true, error: null, result: result };
 	}
 	catch (ex) {
 		error = ex;

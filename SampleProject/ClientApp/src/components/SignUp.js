@@ -17,7 +17,7 @@ export default function SignUp() {
 			email: state.email,
 			password: state.password,
 			displayName: state.displayName
-		});
+		}, null, "text");
 
 		if (success) {
 			history.push("/signin");

@@ -3,14 +3,14 @@ import { callAPI } from "./CallAPI";
 
 export default class AuthService {
 
-	SCOPES = ["api://c368ce89-e0ce-49b5-ab47-e4637843b93a/access_as_user", "User.Read", "profile", "Mail.Read"];
+	SCOPES = ["api://c368ce89-e0ce-49b5-ab47-e4637843b93a/access_as_user", "User.Read", "profile", "Mail.Read"/*, "Team.Create"*/];
 
 	msalInstance = null;
 	msalAuthService = null;
 
 	lastUserInfo = null;
-	userChangedCallback = (user, mode, aadToken, apiToken) => {
-		this.lastUserInfo = { user: user, mode: mode, aadToken, apiToken };
+	userChangedCallback = (user, aadToken, apiToken, graphToken) => {
+		this.lastUserInfo = { user, aadToken, apiToken, graphToken };
 	}
 
 	constructor() {
@@ -23,14 +23,14 @@ export default class AuthService {
 		});
 	}
 
-	handleMsalToken = async (accessToken, mode) => {
+	handleMsalToken = async (accessToken) => {
 
 		this.localToken = accessToken;
 
-		const { success, _, result } = await callAPI("/api/loginWithToken", { accessToken: accessToken });
+		const { success, result } = await callAPI("/api/loginWithToken", { accessToken: accessToken });
 
 		if (success) {
-			this.setUserChanged(result.displayName, mode, accessToken, result.accessToken);
+			this.setUserChanged(result.displayName, accessToken, result.accessToken, result.graphAccessToken);
 			this.cacheServerToken(result.refreshToken, result.tokenExpiry);
 		}
 
@@ -52,21 +52,27 @@ export default class AuthService {
 
 		});
 
-		return await this.handleMsalToken(authResult.accessToken, "msal silent");
+		return await this.handleMsalToken(authResult.accessToken);
 	}
 
 	signInAADRedirect = () => {
 		this.msalInstance.loginRedirect({
-			scopes: this.SCOPES
+			scopes: this.SCOPES,
+			redirectStartPage: "/profile"
 		});
 	}
 
 	signInAADPopup = async () => {
-		const authResult = await this.msalInstance.loginPopup({
-			scopes: this.SCOPES
-		});
+		try {
+			const authResult = await this.msalInstance.loginPopup({
+				scopes: this.SCOPES
+			});
 
-		return await this.handleMsalToken(authResult.accessToken, "msal popup");
+			return await this.handleMsalToken(authResult.accessToken);
+		}
+		catch (err) {
+			console.log("Login failed or interrupted: " + err);
+		}
 	}
 
 	signInLocal = async (email, password) => {
@@ -76,7 +82,7 @@ export default class AuthService {
 		});
 
 		if (success) {
-			this.setUserChanged(result.displayName, "local", null, result.accessToken);
+			this.setUserChanged(result.displayName, null, result.accessToken);
 			this.cacheServerToken(result.refreshToken, result.tokenExpiry);
 		}
 
@@ -98,22 +104,30 @@ export default class AuthService {
 		});
 
 		if (success) {
-			this.setUserChanged(result.displayName, "local silent", null, result.accessToken);
+			this.setUserChanged(result.displayName, null, result.accessToken);
 			this.cacheServerToken(result.refreshToken, result.tokenExpiry);
 		}
 
 		return [success, error];
 	}
 
-	setUserChanged = (displayName, mode, aadToken, apiToken) => {
-		this.userChangedCallback({ displayName: displayName }, mode, aadToken, apiToken);
+	setUserChanged = (displayName, aadToken, apiToken, graphToken) => {
+		this.userChangedCallback({ displayName: displayName }, aadToken, apiToken, graphToken);
 	}
 
 	signInFromAuthCodeRedirect = async () => {
-		const authResult = await this.msalInstance.handleRedirectPromise();
 
-		if (authResult) {
-			return await this.handleMsalToken(authResult.accessToken, "msal redirect");
+		try {
+
+			const authResult = await this.msalInstance.handleRedirectPromise();
+
+			if (authResult) {
+
+				return await this.handleMsalToken(authResult.accessToken);
+			}
+		}
+		catch (err) {
+			console.log("Login failed or interrupted: " + err);
 		}
 
 		return false;
@@ -166,7 +180,7 @@ export default class AuthService {
 	setUserChangedCallback = (callback) => {
 		this.userChangedCallback = callback;
 		if (this.lastUserInfo) {
-			callback(this.lastUserInfo.user, this.lastUserInfo.mode, this.lastUserInfo.aadToken, this.lastUserInfo.apiToken);
+			callback(this.lastUserInfo.user, this.lastUserInfo.aadToken, this.lastUserInfo.apiToken, this.lastUserInfo.graphToken);
 		}
 	}
 }
