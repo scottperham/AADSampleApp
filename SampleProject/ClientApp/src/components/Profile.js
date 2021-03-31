@@ -1,5 +1,5 @@
 ﻿import React, { useContext, useEffect, useState } from 'react';
-import { Table, Button, Card, CardHeader, CardBody, Container, Row, Col } from 'reactstrap';
+import { Card, CardHeader, CardBody, Container, Row, Col } from 'reactstrap';
 import { AuthContext } from '../AuthProvider';
 import { callAPI } from '../services/CallAPI';
 
@@ -11,7 +11,7 @@ export default function Profile() {
 
     const fetchData = async () => {
 
-        const { _, error, result } = await callAPI("/api/profile", {
+        const { error, result } = await callAPI("/api/profile", {
             accessToken: aadToken
         }, apiToken);
 
@@ -112,7 +112,7 @@ export default function Profile() {
                         <Container>
                             <Row>
                                 <Col sm="2">Image:</Col>
-                                <Col><img className="rounded-circle" src={profile.localMsIdentity.image} /></Col>
+                                <Col><img alt="Profile" className="rounded-circle" src={profile.localMsIdentity.image} /></Col>
                             </Row>
                             <Row>
                                 <Col sm="2">ID:</Col>

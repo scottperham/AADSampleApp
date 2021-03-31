@@ -11,7 +11,7 @@ export default function Users() {
 
     const fetchData = async () => {
 
-        const { _, error, result } = await callAPI("/api/users", null, apiToken);
+        const { error, result } = await callAPI("/api/users", null, apiToken);
 
         setState({ users: result, error: error});
     }

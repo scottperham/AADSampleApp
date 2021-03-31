@@ -8,15 +8,17 @@ export function AuthProvider({ authService, children }) {
 		user: null,
 		aadToken: null,
 		apiToken: null,
-		graphToken: null
+		graphToken: null,
+		clientType: "web"
 	});
 
-	const userChangeCallback = (user, aadToken, apiToken, graphToken) => {
+	const userChangeCallback = (user, aadToken, apiToken, graphToken, clientType) => {
 		setAuthContext({
 			user: user,
 			aadToken: aadToken,
 			apiToken: apiToken,
-			graphToken: graphToken
+			graphToken: graphToken,
+			clientType: clientType
 		});
 	}
 
@@ -29,7 +31,8 @@ export function AuthProvider({ authService, children }) {
 		user: authContext.user,
 		aadToken: authContext.aadToken,
 		apiToken: authContext.apiToken,
-		graphToken: authContext.graphToken
+		graphToken: authContext.graphToken,
+		clientType: authContext.clientType
 	}
 
 	return <AuthContext.Provider value={context}>{children}</AuthContext.Provider>
