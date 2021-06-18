@@ -9,22 +9,22 @@ export function AuthProvider({ authService, children }) {
 		aadToken: null,
 		apiToken: null,
 		graphToken: null,
-		clientType: "web"
+		requiresLink: false
 	});
 
-	const userChangeCallback = (user, aadToken, apiToken, graphToken, clientType) => {
+	const userChangeCallback = (user, aadToken, apiToken, graphToken, requiresLink) => {
 		setAuthContext({
 			user: user,
 			aadToken: aadToken,
 			apiToken: apiToken,
 			graphToken: graphToken,
-			clientType: clientType
+			requiresLink: requiresLink
 		});
 	}
 
 	useEffect(() => {
 		authService.setUserChangedCallback(userChangeCallback);
-	}, []);
+	}, [authService]);
 
 	const context = {
 		authService: authService,
@@ -32,7 +32,7 @@ export function AuthProvider({ authService, children }) {
 		aadToken: authContext.aadToken,
 		apiToken: authContext.apiToken,
 		graphToken: authContext.graphToken,
-		clientType: authContext.clientType
+		requiresLink: authContext.requiresLink
 	}
 
 	return <AuthContext.Provider value={context}>{children}</AuthContext.Provider>

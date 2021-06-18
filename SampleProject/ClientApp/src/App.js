@@ -10,6 +10,7 @@ import SignOut from './components/SignOut';
 import SignUp from './components/SignUp';
 import Users from './components/Users';
 import Profile from './components/Profile';
+import Link from './components/Link';
 
 export default function App({ authService }) {
 
@@ -20,6 +21,7 @@ export default function App({ authService }) {
                 <Route path='/signin' component={SignIn} />
                 <Route path='/signout' component={SignOut} />
                 <Route path='/signup' component={SignUp} />
+                <Route path='/link' component={Link} />
                 <ProtectedRoute path='/profile' component={Profile} />
                 <ProtectedRoute path='/users' component={Users} />
             </Layout>

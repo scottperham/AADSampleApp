@@ -17,10 +17,11 @@ namespace SampleProject.Services
             _configuration = configuration;
         }
 
-        public string GetToken(string name, string email, IDictionary<string, string> additionalClaims = null)
+        public string GetToken(string id, string name, string email, IDictionary<string, string> additionalClaims = null)
         {
             var claims = new List<Claim>
             {
+                new Claim(ClaimTypes.NameIdentifier, id),
                 new Claim(ClaimTypes.Name, name),
                 new Claim(ClaimTypes.Email, email)
             };

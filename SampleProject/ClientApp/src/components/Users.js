@@ -1,4 +1,4 @@
-﻿import React, { useContext, useEffect, useState } from 'react';
+﻿import React, { useContext, useEffect, useState, useCallback } from 'react';
 import { Table, Button } from 'reactstrap';
 import { AuthContext } from '../AuthProvider';
 import { callAPI } from '../services/CallAPI';
@@ -9,25 +9,27 @@ export default function Users() {
 
     const [{ users, error }, setState] = useState({users: null, error: null});
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
 
         const { error, result } = await callAPI("/api/users", null, apiToken);
 
-        setState({ users: result, error: error});
-    }
+        setState({ users: result, error: error });
+    }, [apiToken]);
 
     useEffect(() => {
-        fetchData();
-    }, [apiToken])
+        if (apiToken) {
+            fetchData();
+        }
+    }, [apiToken, fetchData])
 
-    const deleteClick = async (email) => {
+    const deleteClick = async (id) => {
 
         if (!window.confirm("Deleting this user cannot be undone.\r\nAre you sure you want to continue?")) {
             return;
         }
 
         const { success, error } = await callAPI("/api/users/delete", {
-            email: email
+            id: id
         }, apiToken);
 
         if (success) {
@@ -58,12 +60,12 @@ export default function Users() {
                     </tr>
                     :
                     users.map(user => {return (
-                        <tr key={user.email}>
+                        <tr key={user.id}>
                             <td>{user.displayName}</td>
                             <td>{user.email}</td>
                             <td>{user.aadLinked.toString()}</td>
                             <td>{user.localAccount.toString()}</td>
-                            <td><Button onClick={() => deleteClick(user.email) }>Delete</Button></td>
+                            <td><Button onClick={() => deleteClick(user.id) }>Delete</Button></td>
                         </tr>)
 					})
                 }

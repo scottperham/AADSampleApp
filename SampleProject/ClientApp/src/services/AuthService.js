@@ -5,14 +5,16 @@ import * as microsoftTeams from "@microsoft/teams-js";
 export default class AuthService {
 
 	//SCOPES = ["api://c368ce89-e0ce-49b5-ab47-e4637843b93a/access_as_user", "User.Read", "profile", "Mail.Read"/*, "Team.Create"*/];
-	SCOPES = ["api://d8f42aefee31.ngrok.io/c368ce89-e0ce-49b5-ab47-e4637843b93a/access_as_user", "User.Read", "profile", "Mail.Read"/*, "Team.Create"*/];
+	SCOPES = ["api://cb99945910fa.ngrok.io/c368ce89-e0ce-49b5-ab47-e4637843b93a/access_as_user", "User.Read", "profile", "Mail.Read"/*, "Team.Create"*/];
 
 	msalInstance = null;
 	msalAuthService = null;
 
+	inTeams = false;
+
 	lastUserInfo = null;
-	userChangedCallback = (user, aadToken, apiToken, graphToken, clientType) => {
-		this.lastUserInfo = { user, aadToken, apiToken, graphToken, clientType };
+	userChangedCallback = (user, aadToken, apiToken, graphToken, link) => {
+		this.lastUserInfo = { user, aadToken, apiToken, graphToken, link };
 	}
 
 	constructor() {
@@ -25,14 +27,33 @@ export default class AuthService {
 		});
 	}
 
-	handleMsalToken = async (accessToken, clientType) => {
+	handleMsalToken = async (accessToken) => {
 
 		this.localToken = accessToken;
 
 		const { success, result } = await callAPI("/api/loginWithToken", { accessToken: accessToken });
 
 		if (success) {
-			this.setUserChanged(result.displayName, accessToken, result.accessToken, result.graphAccessToken, clientType);
+
+			if (result.requireLink) {
+				this.setUserChanged(result.displayName, accessToken, null, null, true);
+			}
+			else {
+				this.setUserChanged(result.displayName, accessToken, result.accessToken, result.graphAccessToken);
+				this.cacheServerToken(result.refreshToken, result.tokenExpiry);
+			}
+		}
+
+		return success;
+	}
+
+	linkIdentity = async (accessToken, link) => {
+		this.localToken = accessToken;
+
+		const { success, result } = await callAPI("/api/linkWithIdentity", { accessToken: accessToken, link: link });
+
+		if (success) {
+			this.setUserChanged(result.displayName, accessToken, result.accessToken, result.graphAccessToken);
 			this.cacheServerToken(result.refreshToken, result.tokenExpiry);
 		}
 
@@ -54,7 +75,7 @@ export default class AuthService {
 
 		});
 
-		return await this.handleMsalToken(authResult.accessToken, "web");
+		return await this.handleMsalToken(authResult.accessToken);
 	}
 
 	signInAADRedirect = () => {
@@ -70,7 +91,7 @@ export default class AuthService {
 				scopes: this.SCOPES
 			});
 
-			return await this.handleMsalToken(authResult.accessToken, "web");
+			return await this.handleMsalToken(authResult.accessToken);
 		}
 		catch (err) {
 			console.log("Login failed or interrupted: " + err);
@@ -84,7 +105,7 @@ export default class AuthService {
 		});
 
 		if (success) {
-			this.setUserChanged(result.displayName, null, result.accessToken, null, "web");
+			this.setUserChanged(result.displayName, null, result.accessToken, null);
 			this.cacheServerToken(result.refreshToken, result.tokenExpiry);
 		}
 
@@ -106,15 +127,15 @@ export default class AuthService {
 		});
 
 		if (success) {
-			this.setUserChanged(result.displayName, null, result.accessToken, null, "web");
+			this.setUserChanged(result.displayName, null, result.accessToken, null);
 			this.cacheServerToken(result.refreshToken, result.tokenExpiry);
 		}
 
 		return [success, error];
 	}
 
-	setUserChanged = (displayName, aadToken, apiToken, graphToken, clientType) => {
-		this.userChangedCallback({ displayName: displayName }, aadToken, apiToken, graphToken, clientType);
+	setUserChanged = (displayName, aadToken, apiToken, graphToken, link) => {
+		this.userChangedCallback({ displayName: displayName }, aadToken, apiToken, graphToken, link);
 	}
 
 	signInFromAuthCodeRedirect = async () => {
@@ -125,7 +146,7 @@ export default class AuthService {
 
 			if (authResult) {
 
-				return await this.handleMsalToken(authResult.accessToken, "web");
+				return await this.handleMsalToken(authResult.accessToken);
 			}
 		}
 		catch (err) {
@@ -142,7 +163,7 @@ export default class AuthService {
 
 			console.log("Signed in with Teams");
 
-			return await this.handleMsalToken(result, "teams");
+			return await this.handleMsalToken(result);
 		}
 		catch (error) {
 			console.log("SAMPLE - ERROR: " + error);
@@ -174,25 +195,33 @@ export default class AuthService {
 
 	getTeamsToken = () => {
 
+		return new Promise((resolve, reject) => {
+			microsoftTeams.authentication.getAuthToken({
+				successCallback: (token) => {
+					resolve(token);
+				},
+				failureCallback: (reason) => {
+					reject(reason);
+				}
+			})
+		});
+	}
+
+	initialiseTeams = () => {
 		let rejectPromise = null;
 		let timeout = null;
 
 		const promise = new Promise((resolve, reject) => {
 			rejectPromise = reject;
-			microsoftTeams.authentication.getAuthToken({
-				successCallback: (token) => {
+			microsoftTeams.initialize(() => {
 					window.clearTimeout(timeout);
-					resolve(token);
-				},
-				failureCallback: (reason) => {
-					window.clearTimeout(timeout);
-					reject(reason);
+					resolve(true);
 				}
-			})
+			)
 		});
 
 		timeout = window.setTimeout(() => {
-			rejectPromise("Timeout");
+			rejectPromise("Teams Initialise Timeout");
 		}, 2000);
 
 		return promise;
@@ -210,27 +239,54 @@ export default class AuthService {
 
 	handlePageLoad = async () => {
 
-		microsoftTeams.initialize();
-
-		if (await this.signInWithTeams()) {
-			return;
+		try {
+			await this.initialiseTeams();
+			this.inTeams = true;
+		}
+		catch {
+			this.inTeams = false;
 		}
 
-		if (await this.signInFromAuthCodeRedirect()) {
-			return;
-		}
+		//alert(window.location.pathname);
 
-		if (await this.signInAADSilent()) {
-			return;
-		}
+		if (this.inTeams) {
 
-		await this.signInLocalSilent();
+			//Check for config page...
+			if (window.location.pathname == "/config") {
+				microsoftTeams.settings.registerOnSaveHandler((saveEvent) => {
+					microsoftTeams.settings.setSettings({
+						websiteUrl: "https://cb99945910fa.ngrok.io",
+						contentUrl: "https://cb99945910fa.ngrok.io",
+						entityId: "sampleApp",
+						suggestedDisplayName: "My New Suggested Tab Name"
+					});
+					saveEvent.notifySuccess();
+				});
+				microsoftTeams.settings.setValidityState(true);
+			}
+
+			if (await this.signInWithTeams()) {
+				return;
+			}
+		}
+		else {
+
+			if (await this.signInFromAuthCodeRedirect()) {
+				return;
+			}
+
+			if (await this.signInAADSilent()) {
+				return;
+			}
+
+			await this.signInLocalSilent();
+		}
 	}
 
 	setUserChangedCallback = (callback) => {
 		this.userChangedCallback = callback;
 		if (this.lastUserInfo) {
-			callback(this.lastUserInfo.user, this.lastUserInfo.aadToken, this.lastUserInfo.apiToken, this.lastUserInfo.graphToken, this.lastUserInfo.clientType);
+			callback(this.lastUserInfo.user, this.lastUserInfo.aadToken, this.lastUserInfo.apiToken, this.lastUserInfo.graphToken, this.lastUserInfo.link);
 		}
 	}
 }

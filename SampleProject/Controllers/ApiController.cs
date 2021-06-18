@@ -36,22 +36,29 @@ namespace SampleProject.Controllers
             return Convert.ToBase64String(byteResult.GetBytes(24));
         }
 
-        LoginResult GetLoginResult(UserIdentity identity, RefreshToken refreshToken, string graphToken = null)
+        LoginResult GetLoginResult(UserIdentity identity, RefreshToken refreshToken, string graphToken = null, bool requireLink = false)
         {
-            return new LoginResult
+            var loginResult = new LoginResult
             {
-                AccessToken = _tokenService.GetToken(identity.DisplayName, identity.Email),
-                RefreshToken = refreshToken.Token,
-                TokenExpiry = (int)(refreshToken.AbsoluteExpiryUtc - _epoch).TotalSeconds,
                 DisplayName = identity.DisplayName,
-                GraphAccessToken = graphToken
+                GraphAccessToken = graphToken,
+                RequireLink = requireLink
             };
+
+            if (!requireLink)
+            {
+                loginResult.TokenExpiry = (int)(refreshToken.AbsoluteExpiryUtc - _epoch).TotalSeconds;
+                loginResult.RefreshToken = refreshToken.Token;
+                loginResult.AccessToken = _tokenService.GetToken(identity.Id, identity.DisplayName, identity.Email);
+            }
+
+            return loginResult;
         }
 
         [HttpPost("SignUp")]
         public async Task<IActionResult> SignUp([FromBody] CreateUserRequest request)
         {
-            var identity = await _identityProvider.GetUserByEmail(request.Email);
+            var identity = await _identityProvider.GetLocalUserByEmail(request.Email);
 
             if (identity != null)
             {
@@ -60,6 +67,7 @@ namespace SampleProject.Controllers
 
             identity = new UserIdentity
             {
+                Id = Guid.NewGuid().ToString(),
                 DisplayName = request.DisplayName,
                 Email = request.Email,
                 Password = ComputePasswordHash(request.Password, request.Email),
@@ -99,7 +107,7 @@ namespace SampleProject.Controllers
                 return BadRequest("You must specify both email and password");
             }
 
-            var identity = await _identityProvider.GetUserByEmail(request.Email);
+            var identity = await _identityProvider.GetLocalUserByEmail(request.Email);
 
             if (identity == null)
             {
@@ -122,34 +130,76 @@ namespace SampleProject.Controllers
             return Ok(GetLoginResult(identity, refreshToken));
         }
 
-        [HttpPost("LoginWithToken")]
-        public async Task<IActionResult> LoginWithToken([FromBody] TokenLoginRequest request)
+        private async Task<LoginResult> LoginWithTokenInternal(string accessToken, bool shouldLink, bool saveLink)
         {
-            var graphAccessToken = await _graph.GetOnBehalfOfToken(request.AccessToken);
+            var graphAccessToken = await _graph.GetOnBehalfOfToken(accessToken);
 
             var me = await _graph.GetMe(graphAccessToken);
+            var org = await _graph.GetOrganisation(graphAccessToken);
 
-            var identity = await _identityProvider.GetUserByEmail(me.Mail);
+            var identity = await _identityProvider.GetUserByOidAndTid(me.Id, org.Value[0].Id);
 
             if (identity == null)
             {
-                identity = new UserIdentity
+                identity = await _identityProvider.GetLocalUserByEmail(me.Mail);
+
+                if (identity != null)
                 {
-                    DisplayName = me.DisplayName,
-                    Email = me.Mail,
-                    RefreshTokens = new List<RefreshToken>()
-                };
+                    if (!shouldLink)
+                    {
+                        //Do link flow...
+                        return GetLoginResult(identity, null, graphAccessToken, true);
+                    }
+
+                    if (saveLink)
+                    {
+                        //Link!
+                        identity.AADOID = me.Id;
+                        identity.AADTID = org.Value[0].Id;
+                    }
+                    else
+                    {
+                        identity = null;
+                    }
+                }
+
+                //No user at all...
+                //fall through to create a new one
             }
 
-            var refreshToken = _tokenService.GetRefreshToken();
+            identity ??= new UserIdentity
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = me.DisplayName,
+                Email = me.Mail,
+                AADOID = me.Id,
+                AADTID = org.Value[0].Id,
+                RefreshTokens = new List<RefreshToken>()
+            };
 
-            identity.LinkedToAAD = true;
+            var refreshToken = _tokenService.GetRefreshToken();
 
             identity.AddRefreshToken(refreshToken);
 
             await _identityProvider.CreateOrUpdateUser(identity);
 
-            return Ok(GetLoginResult(identity, refreshToken, graphAccessToken));
+            return GetLoginResult(identity, refreshToken, graphAccessToken);
+        }
+
+        [HttpPost("LinkWithIdentity")]
+        public async Task<IActionResult> LinkWithIdentity([FromBody] LinkLoginRequest request)
+        {
+            var result = await LoginWithTokenInternal(request.AccessToken, true, request.Link);
+
+            return Ok(result);
+        }
+
+        [HttpPost("LoginWithToken")]
+        public async Task<IActionResult> LoginWithToken([FromBody] TokenLoginRequest request)
+        {
+            var result = await LoginWithTokenInternal(request.AccessToken, false, false);
+
+            return Ok(result);
         }
 
         [HttpGet("Users")]
@@ -160,6 +210,7 @@ namespace SampleProject.Controllers
 
             return Ok(identities.Select(x => new UserIdentityResult
             {
+                Id = x.Id,
                 Email = x.Email,
                 DisplayName = x.DisplayName,
                 AADLinked = x.LinkedToAAD,
@@ -180,9 +231,9 @@ namespace SampleProject.Controllers
         [Authorize]
         public async Task<IActionResult> GetProfile([FromBody] GetProfileRequest request)
         {
-            var emailClaim = User.FindFirst(ClaimTypes.Email);
+            var idClaim = User.FindFirst(ClaimTypes.NameIdentifier);
 
-            var identity = await _identityProvider.GetUserByEmail(emailClaim.Value);
+            var identity = await _identityProvider.GetUserById(idClaim.Value);
 
             GraphMeResult microsoftIdentity = null;
 

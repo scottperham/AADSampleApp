@@ -1,4 +1,4 @@
-﻿import React, { useContext, useEffect, useState } from 'react';
+﻿import React, { useContext, useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader, CardBody, Container, Row, Col } from 'reactstrap';
 import { AuthContext } from '../AuthProvider';
 import { callAPI } from '../services/CallAPI';
@@ -9,7 +9,7 @@ export default function Profile() {
 
     const [{ profile, error }, setState] = useState({ profile: null, error: null });
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
 
         const { error, result } = await callAPI("/api/profile", {
             accessToken: aadToken
@@ -31,7 +31,7 @@ export default function Profile() {
                 }
                 else {
                     alert(err);
-				}
+                }
 
             }
             else {
@@ -40,13 +40,13 @@ export default function Profile() {
         }
 
         setState({ profile: profile, error: error });
-    }
+    }, [aadToken, graphToken, apiToken]);
 
     useEffect(() => {
         if (apiToken) {
             fetchData();
         }
-    }, [apiToken])
+    }, [apiToken, fetchData])
 
     return !profile || error ?
                 <div>{error || "Loading..."}</div>
@@ -55,6 +55,10 @@ export default function Profile() {
                 <CardHeader>Local Identity</CardHeader>
                 <CardBody>
                     <Container>
+                        <Row>
+                            <Col sm="2">ID:</Col>
+                            <Col>{profile.localIdentity.id}</Col>
+                        </Row>
                         <Row>
                             <Col sm="2">Display Name:</Col>
                             <Col>{profile.localIdentity.displayName}</Col>

@@ -59,5 +59,14 @@ namespace SampleProject.Services
 
             return JsonSerializer.Deserialize<GraphMeResult>(await meResult.Content.ReadAsStringAsync(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
         }
+
+        public async Task<GraphOrganizationResult> GetOrganisation(string token)
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var orgResult = await _httpClient.GetAsync("https://graph.microsoft.com/v1.0/organization");
+
+            return JsonSerializer.Deserialize<GraphOrganizationResult>(await orgResult.Content.ReadAsStringAsync(), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        }
     }
 }

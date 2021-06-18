@@ -55,11 +55,25 @@ namespace SampleProject.Services
             return true;
         }
 
-        public async Task<UserIdentity> GetUserByEmail(string email)
+        public async Task<UserIdentity> GetUserById(string id)
         {
             await PopulateCache();
 
-            return _cached.FirstOrDefault(x => x.Email.Equals(email, StringComparison.OrdinalIgnoreCase));
+            return _cached.FirstOrDefault(x => x.Id.Equals(id));
+        }
+
+        public async Task<UserIdentity> GetUserByOidAndTid(string oid, string tid)
+        {
+            await PopulateCache();
+
+            return _cached.FirstOrDefault(x => x.AADOID?.Equals(oid) == true && x.AADTID?.Equals(tid) == true);
+        }
+
+        public async Task<UserIdentity> GetLocalUserByEmail(string email)
+        {
+            await PopulateCache();
+
+            return _cached.FirstOrDefault(x => x.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(x.Password));
         }
 
         public async Task<UserIdentity[]> GetAllUsers()
@@ -80,7 +94,7 @@ namespace SampleProject.Services
         {
             await PopulateCache();
 
-            var userIndex = _cached.FindIndex(x => x.Email.Equals(user.Email, StringComparison.OrdinalIgnoreCase));
+            var userIndex = _cached.FindIndex(x => x.Id.Equals(user.Id));
 
             if (userIndex != -1){
 
@@ -95,11 +109,11 @@ namespace SampleProject.Services
             await CommitCache();
         }
 
-        public async Task DeleteUser(string email)
+        public async Task DeleteUser(string id)
         {
             await PopulateCache();
 
-            _cached.RemoveAll(x => x.Email.Equals(email, StringComparison.OrdinalIgnoreCase));
+            _cached.RemoveAll(x => x.Id.Equals(id));
         }
     }
 }
