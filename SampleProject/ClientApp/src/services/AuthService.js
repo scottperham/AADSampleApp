@@ -4,11 +4,15 @@ import * as microsoftTeams from "@microsoft/teams-js";
 
 export default class AuthService {
 
+	//todo: add a variable into appsettings.json to define the api url
 	//SCOPES = ["api://c368ce89-e0ce-49b5-ab47-e4637843b93a/access_as_user", "User.Read", "profile", "Mail.Read"/*, "Team.Create"*/];
 	SCOPES = ["api://cb99945910fa.ngrok.io/c368ce89-e0ce-49b5-ab47-e4637843b93a/access_as_user", "User.Read", "profile", "Mail.Read"/*, "Team.Create"*/];
 
 	msalInstance = null;
 	msalAuthService = null;
+
+	//initalise the inTeams variable and set it to false - this will change when initaliseTeams function is called, if the page
+	//is loaded from within Microsoft Teams
 
 	inTeams = false;
 
@@ -16,6 +20,10 @@ export default class AuthService {
 	userChangedCallback = (user, aadToken, apiToken, graphToken, link) => {
 		this.lastUserInfo = { user, aadToken, apiToken, graphToken, link };
 	}
+
+	//initialise the MSAL client app, ready for sign-in, if required
+	//clientID and RedirectURI are defined in .env file
+	//todo: check with Scott if this can be moved to appsettings.json
 
 	constructor() {
 
@@ -78,12 +86,22 @@ export default class AuthService {
 		return await this.handleMsalToken(authResult.accessToken);
 	}
 
+	//if redirect button is pressed on sign-in page, this function is called
+	//it will redirect user to Azure AD, using the Code Grant to PKCE flow
+	//scopes defined in this file are used
+	//will redirect bact to whatever is defined in .env/profile
+
 	signInAADRedirect = () => {
 		this.msalInstance.loginRedirect({
 			scopes: this.SCOPES,
 			redirectStartPage: "/profile"
 		});
 	}
+
+	//if popup button is pressed on sign-in page, this function is called
+	//it will popup a new windows and present the Azure AD sign-in page to the user, using the Code Grant to PKCE flow
+	//scopes defined in this file are used
+	//will return the accesstoken back to the parent window (signin) or the expection code if failure occurs
 
 	signInAADPopup = async () => {
 		try {
@@ -156,6 +174,8 @@ export default class AuthService {
 		return false;
 	}
 
+	//this function will attempt to sign-in using Teams. It calls the getTeamsToken function in this file
+
 	signInWithTeams = async () => {
 		try {
 
@@ -193,6 +213,9 @@ export default class AuthService {
 		window.sessionStorage.setItem("server_token", JSON.stringify({refreshToken: refreshToken, tokenExpiry: tokenExpiry}));
 	}
 
+	//this function is used to get the Azure AD Access token using the new Teams SSO flow
+	//uses the settings from within the Teams manifest to perform this SSO
+
 	getTeamsToken = () => {
 
 		return new Promise((resolve, reject) => {
@@ -207,6 +230,9 @@ export default class AuthService {
 		});
 	}
 
+	//this function initialises the Teams SDK, this is required to pass context and allow the SSO flow to be used in Teams
+	//success/failure is returned to the function that called this
+
 	initialiseTeams = () => {
 		let rejectPromise = null;
 		let timeout = null;
@@ -219,6 +245,9 @@ export default class AuthService {
 				}
 			)
 		});
+
+		//todo: try and improve this if possible. At present this function will return that the page is not open in Teams
+		//based on the MicrosoftTeams.initialize function timing out within 2 seconds
 
 		timeout = window.setTimeout(() => {
 			rejectPromise("Teams Initialise Timeout");
@@ -236,6 +265,13 @@ export default class AuthService {
 	}
 
 	isLoggedIn = () => !!window.sessionStorage.getItem("server_token");
+
+	//called from index.js (on every page loaded in the client app) - this is where it all starts for authentication in the client app
+	//this function will calls the initialiseTeams function and reports back if the page has been opened in Teams or not
+	//then it sets the variable inTeams to true to false depending on what is returned by the initaliseTeams function
+	//if page is loaded in Teams, then it checks if the config page is being accessed and sets the options appropriately to handle this
+	//if it isn't the config page the signinWithTeams function is called, that handles SSO from within Teams
+	//if outside of Teams, then the signinlocal or azure ad interactive sign-in options are loaded
 
 	handlePageLoad = async () => {
 
@@ -264,6 +300,8 @@ export default class AuthService {
 				});
 				microsoftTeams.settings.setValidityState(true);
 			}
+
+			//check with Scott - should this have an if?
 
 			if (await this.signInWithTeams()) {
 				return;

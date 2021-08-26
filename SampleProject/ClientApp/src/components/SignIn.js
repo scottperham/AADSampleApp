@@ -10,9 +10,13 @@ export default function SignIn() {
 
 	const [state, updateState] = useState({ email: null, password: null, error: null });
 
+	//calls the signinAADRedirect function in AuthService.js
+
 	const signInWithRedirectClick = () => {
 		authService.signInAADRedirect();
 	}
+
+	//calls the signInwithPopupClick function in AuthService.js and waits for a response
 
 	const signInWithPopupClick = async () => {
 		if (await authService.signInAADPopup()) {
