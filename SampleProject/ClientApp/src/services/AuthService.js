@@ -23,8 +23,7 @@ export default class AuthService {
 
 	//initialise the MSAL client app, ready for sign-in, if required
 	//clientID and RedirectURI are defined in .env file
-	//todo: check with Scott if this can be moved to appsettings.json
-
+	//todo: move this to config
 	constructor() {
 
 		this.msalInstance = new PublicClientApplication({
@@ -138,7 +137,7 @@ export default class AuthService {
 		}
 
 		//Check expiry date of refresh token
-		///if (serverToken.expiry) ...
+		//if (serverToken.expiry) ...
 
 		const { success, error, result } = await callAPI("/api/refreshToken", {
 			token: serverToken.refreshToken
@@ -204,9 +203,7 @@ export default class AuthService {
 
 		this.msalInstance.logout({
 			postLogoutRedirectUri: "/signin"
-		});
-
-		//this.setUserChanged(null, null, "logout");		
+		});	
 	}
 
 	cacheServerToken = (refreshToken, tokenExpiry) => {
@@ -283,16 +280,15 @@ export default class AuthService {
 			this.inTeams = false;
 		}
 
-		//alert(window.location.pathname);
-
 		if (this.inTeams) {
 
 			//Check for config page...
 			if (window.location.pathname == "/config") {
 				microsoftTeams.settings.registerOnSaveHandler((saveEvent) => {
 					microsoftTeams.settings.setSettings({
-						websiteUrl: "https://cb99945910fa.ngrok.io",
-						contentUrl: "https://cb99945910fa.ngrok.io",
+						//todo: move this to config
+						websiteUrl: "https://perham.eu.ngrok.io",
+						contentUrl: "https://perham.eu.ngrok.io",
 						entityId: "sampleApp",
 						suggestedDisplayName: "My New Suggested Tab Name"
 					});
@@ -301,9 +297,9 @@ export default class AuthService {
 				microsoftTeams.settings.setValidityState(true);
 			}
 
-			//check with Scott - should this have an if?
-
 			if (await this.signInWithTeams()) {
+				//we are in Teams but there was a problem getting sigining in the user
+				//do something here with the error
 				return;
 			}
 		}
