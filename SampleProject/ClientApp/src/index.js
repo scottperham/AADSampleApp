@@ -10,6 +10,9 @@ const rootElement = document.getElementById('root');
 
 const authService = new AuthService();
 
+//this calls the handlePageLoad function is authservice.js, which checks if the page is loaded in Teams
+//and decides how to handle authentication from there
+
 authService.handlePageLoad().then(() => {
 
     ReactDOM.render(
